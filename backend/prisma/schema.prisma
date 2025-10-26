@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    Int                     @id @default(autoincrement())
+  principal             String                  @unique
+  codename              String?
+  avatarUrl             String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  ownedNfts             Nft[]                   @relation("OwnedNFTs")
+  createdNfts           Nft[]                   @relation("CreatedNFTs")
+  listings              Listing[]
+  bids                  Bid[]
+  toolboxRows           ToolboxRow[]
+  puzzleRuns            PuzzleRun[]
+  creditLedgerEntries   CreditLedgerEntry[]
+  outgoingTransactions  Transaction[]           @relation("TransactionsFrom")
+  incomingTransactions  Transaction[]           @relation("TransactionsTo")
+}
+
+model Nft {
+  id                     Int               @id @default(autoincrement())
+  mintAddress            String?           @unique
+  name                   String
+  description            String?
+  imageUri               String?
+  metadataUri            String?
+  collection             String?
+  sellerFeeBasisPoints   Int       @default(0)
+  attributes             Json?
+  isCompressed           Boolean           @default(false)
+  ownerId                Int
+  owner                  User              @relation("OwnedNFTs", fields: [ownerId], references: [id])
+  creatorId              Int
+  creator                User              @relation("CreatedNFTs", fields: [creatorId], references: [id])
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  listings               Listing[]
+  bids                   Bid[]
+  transactions           Transaction[]
+  puzzleRuns             PuzzleRun[]
+}
+
+model Listing {
+  id                    Int             @id @default(autoincrement())
+  nftId                 Int
+  nft                   Nft             @relation(fields: [nftId], references: [id])
+  sellerId              Int
+  seller                User            @relation(fields: [sellerId], references: [id])
+  priceLamports         BigInt
+  auctionHouseReceipt   String?         @unique
+  status                ListingStatus   @default(ACTIVE)
+  expiresAt             DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  bids                  Bid[]
+}
+
+model Bid {
+  id                    Int          @id @default(autoincrement())
+  nftId                 Int
+  nft                   Nft          @relation(fields: [nftId], references: [id])
+  bidderId              Int
+  bidder                User         @relation(fields: [bidderId], references: [id])
+  listingId             Int?
+  listing               Listing?     @relation(fields: [listingId], references: [id])
+  amountLamports        BigInt
+  auctionHouseReceipt   String?      @unique
+  status                BidStatus    @default(ACTIVE)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  acceptedAt            DateTime?
+}
+
+model Transaction {
+  id             Int                     @id @default(autoincrement())
+  txSig          String                  @unique
+  eventType      TransactionEventType
+  nftId          Int?
+  nft            Nft?                    @relation(fields: [nftId], references: [id])
+  priceLamports  BigInt?
+  fromUserId     Int?
+  fromUser       User?                   @relation("TransactionsFrom", fields: [fromUserId], references: [id])
+  toUserId       Int?
+  toUser         User?                   @relation("TransactionsTo", fields: [toUserId], references: [id])
+  blockTime      DateTime?
+  createdAt      DateTime                @default(now())
+  message        String?
+}
+
+model PuzzleRun {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  user         User      @relation(fields: [userId], references: [id])
+  nftId        Int
+  nft          Nft       @relation(fields: [nftId], references: [id])
+  solved       Boolean   @default(false)
+  bestTimeMs   Int?
+  attempts     Int       @default(0)
+  hintsUsed    Int       @default(0)
+  lastRunAt    DateTime? 
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([userId, nftId])
+}
+
+model TransactionFeedEvent {
+  id            Int       @id @default(autoincrement())
+  eventCode     String
+  message       String
+  txSig         String?
+  createdAt     DateTime  @default(now())
+}
+
+model ToolboxRow {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  label      String
+  content    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model CreditLedgerEntry {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  user          User      @relation(fields: [userId], references: [id])
+  delta         BigInt
+  balanceAfter  BigInt
+  reason        String
+  createdAt     DateTime  @default(now())
+}
+
+enum ListingStatus {
+  ACTIVE
+  SOLD
+  CANCELLED
+  EXPIRED
+}
+
+enum BidStatus {
+  ACTIVE
+  CANCELLED
+  ACCEPTED
+  EXPIRED
+}
+
+enum TransactionEventType {
+  MINT
+  LIST
+  SALE
+  BID
+  BID_ACCEPTED
+  BID_CANCELLED
+  TROPHY_MINTED
+  TRANSFER
+}

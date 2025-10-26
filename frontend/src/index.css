@@ -1,0 +1,122 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0% 0 0;
+    --foreground: 88% 0 0;
+    --card: 5% 0 0;
+    --card-foreground: 88% 0 0;
+    --popover: 5% 0 0;
+    --popover-foreground: 88% 0 0;
+    --primary: 60% 0.25 25;
+    --primary-foreground: 100% 0 0;
+    --secondary: 20% 0 0;
+    --secondary-foreground: 88% 0 0;
+    --muted: 30% 0 0;
+    --muted-foreground: 60% 0 0;
+    --accent: 60% 0.25 25;
+    --accent-foreground: 100% 0 0;
+    --destructive: 55% 0.22 25;
+    --destructive-foreground: 100% 0 0;
+    --border: 30% 0.05 25;
+    --input: 30% 0.05 25;
+    --ring: 60% 0.25 25;
+    --radius: 0.25rem;
+  }
+
+  .dark {
+    --background: 0% 0 0;
+    --foreground: 88% 0 0;
+    --card: 5% 0 0;
+    --card-foreground: 88% 0 0;
+    --popover: 5% 0 0;
+    --popover-foreground: 88% 0 0;
+    --primary: 60% 0.25 25;
+    --primary-foreground: 100% 0 0;
+    --secondary: 20% 0 0;
+    --secondary-foreground: 88% 0 0;
+    --muted: 30% 0 0;
+    --muted-foreground: 60% 0 0;
+    --accent: 60% 0.25 25;
+    --accent-foreground: 100% 0 0;
+    --destructive: 55% 0.22 25;
+    --destructive-foreground: 100% 0 0;
+    --border: 30% 0.05 25;
+    --input: 30% 0.05 25;
+    --ring: 60% 0.25 25;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+}
+
+@layer utilities {
+  .cyber-border {
+    @apply border border-primary/30;
+  }
+
+  .cyber-glow {
+    text-shadow: 0 0 10px oklch(var(--primary)),
+                 0 0 20px oklch(var(--primary));
+  }
+
+  .cyber-pulse {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .rotate-slow {
+    animation: rotate 60s linear infinite;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+
+  .bg-gradient-radial {
+    background: radial-gradient(circle, var(--tw-gradient-stops));
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    text-shadow: 0 0 10px oklch(var(--primary)),
+                 0 0 20px oklch(var(--primary));
+  }
+  50% {
+    opacity: 0.7;
+    text-shadow: 0 0 5px oklch(var(--primary)),
+                 0 0 10px oklch(var(--primary));
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
