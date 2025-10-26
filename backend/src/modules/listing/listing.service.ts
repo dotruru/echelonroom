@@ -244,15 +244,17 @@ export async function acceptBidOnListing(params: { listingId: number; sellerId: 
       },
     });
 
-    if (!bid || bid.listingId !== params.listingId) {
+    if (!bid || bid.listingId !== params.listingId || !bid.listing) {
       throw new Error('Bid not found for this listing');
     }
 
-    if (bid.listing.sellerId !== params.sellerId) {
+    const listingRecord = bid.listing;
+
+    if (listingRecord.sellerId !== params.sellerId) {
       throw new Error('Only the seller can accept bids');
     }
 
-    if (bid.listing.status !== ListingStatus.ACTIVE) {
+    if (listingRecord.status !== ListingStatus.ACTIVE) {
       throw new Error('Listing is not active');
     }
 
@@ -267,7 +269,7 @@ export async function acceptBidOnListing(params: { listingId: number; sellerId: 
     });
 
     await tx.nft.update({
-      where: { id: bid.listing.nftId },
+      where: { id: listingRecord.nftId },
       data: { ownerId: bid.bidderId },
     });
 
@@ -282,16 +284,16 @@ export async function acceptBidOnListing(params: { listingId: number; sellerId: 
 
     await recordTransaction({
       eventType: TransactionEventType.BID_ACCEPTED,
-      nftId: bid.listing.nftId,
+      nftId: listingRecord.nftId,
       priceLamports: bid.amountLamports,
       fromUserId: params.sellerId,
       toUserId: bid.bidderId,
-      message: `Bid accepted for ${bid.listing.nft.name}`,
+      message: `Bid accepted for ${listingRecord.nft.name}`,
     });
 
     await appendFeedEvent({
       eventCode: 'BID_ACCEPTED',
-      message: `${bid.listing.seller.codename ?? bid.listing.seller.principal} accepted bid on ${bid.listing.nft.name}`,
+      message: `${listingRecord.seller.codename ?? listingRecord.seller.principal} accepted bid on ${listingRecord.nft.name}`,
     });
   });
 }

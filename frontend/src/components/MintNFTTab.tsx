@@ -8,7 +8,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Upload, Plus, Eye, Lock, Download, X, Hash, Key, Copy, Shield } from 'lucide-react';
-import { ExternalBlob } from '@/lib/external-blob';
 import { embedMessageAdvanced, EncryptionType } from '../lib/steganography-advanced';
 import {
   sha256, sha1, md5,
@@ -113,26 +112,20 @@ export default function MintNFTTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !description || !imageFile) return;
-
-    let finalImageData: Uint8Array<ArrayBuffer>;
-
-    // Use encoded image if available, otherwise use original
-    if (processedImage) {
-      // Convert to Uint8Array<ArrayBuffer> by creating a new ArrayBuffer
-      const buffer = new ArrayBuffer(processedImage.length);
-      const view = new Uint8Array(buffer);
-      view.set(processedImage);
-      finalImageData = view;
-    } else {
-      const arrayBuffer = await imageFile.arrayBuffer();
-      finalImageData = new Uint8Array(arrayBuffer);
+    if (!name || !description || !imageFile) {
+      toast.error('Complete all required fields');
+      return;
     }
 
-    const imageBlob = ExternalBlob.fromBytes(finalImageData);
+    const imageData = processedPreview ?? imagePreview;
+
+    if (!imageData) {
+      toast.error('Unable to read image data');
+      return;
+    }
 
     mintNFT(
-      { name, description, image: imageBlob },
+      { name, description, imageData },
       {
         onSuccess: () => {
           setName('');

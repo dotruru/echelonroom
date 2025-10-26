@@ -4,49 +4,44 @@ import { Input } from '@/components/ui/input';
 import { Plus, Clipboard, Trash2 } from 'lucide-react';
 import { useGetToolbox, useSaveToolbox } from '@/hooks/useQueries';
 import { toast } from 'sonner';
-
-interface ToolboxRowData {
-  toolboxLabel: string;
-  content: string;
-}
+import type { ToolboxRow } from '@/types/domain';
 
 export default function Toolbox() {
   const { data: toolboxData = [], isLoading } = useGetToolbox();
   const saveToolboxMutation = useSaveToolbox();
-  
-  const [rows, setRows] = useState<ToolboxRowData[]>(toolboxData);
+
+  const [rows, setRows] = useState<ToolboxRow[]>(toolboxData);
 
   // Sync with backend data when it loads
   useEffect(() => {
-    if (toolboxData.length > 0) {
-      setRows(toolboxData);
-    }
+    setRows(toolboxData);
   }, [toolboxData]);
 
+  const persist = (nextRows: ToolboxRow[]) => {
+    setRows(nextRows);
+    saveToolboxMutation.mutate(nextRows);
+  };
+
   const addRow = () => {
-    const newRows = [...rows, { toolboxLabel: '', content: '' }];
-    setRows(newRows);
-    saveToolboxMutation.mutate(newRows);
+    const newRows = [...rows, { label: '', content: '' }];
+    persist(newRows);
   };
 
   const updateLabel = (index: number, label: string) => {
     const newRows = [...rows];
-    newRows[index].toolboxLabel = label;
-    setRows(newRows);
-    saveToolboxMutation.mutate(newRows);
+    newRows[index] = { ...newRows[index], label };
+    persist(newRows);
   };
 
   const updateContent = (index: number, content: string) => {
     const newRows = [...rows];
-    newRows[index].content = content;
-    setRows(newRows);
-    saveToolboxMutation.mutate(newRows);
+    newRows[index] = { ...newRows[index], content };
+    persist(newRows);
   };
 
   const deleteRow = (index: number) => {
     const newRows = rows.filter((_, i) => i !== index);
-    setRows(newRows);
-    saveToolboxMutation.mutate(newRows);
+    persist(newRows);
   };
 
   const handlePaste = async (index: number) => {
@@ -91,10 +86,10 @@ export default function Toolbox() {
           </p>
         ) : (
           rows.map((row, index) => (
-            <div key={index} className="cyber-border rounded-sm bg-black/50 p-3 space-y-2">
+            <div key={row.id ?? index} className="cyber-border rounded-sm bg-black/50 p-3 space-y-2">
               <div className="flex items-center gap-2">
                 <Input
-                  value={row.toolboxLabel}
+                  value={row.label}
                   onChange={(event: ChangeEvent<HTMLInputElement>) => updateLabel(index, event.target.value)}
                   placeholder="LABEL"
                   className="h-7 text-xs uppercase tracking-wider bg-black/50 border-primary/30 text-foreground placeholder:text-muted-foreground/50 font-mono"

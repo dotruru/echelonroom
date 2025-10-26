@@ -15,12 +15,8 @@ export default function TransactionFeed() {
     return () => clearInterval(interval);
   }, [refetch]);
 
-  const formatTimestamp = (timestamp?: string) => {
-    if (!timestamp) {
-      return 'UNKNOWN';
-    }
-
-    const date = new Date(timestamp);
+  const formatTimestamp = (createdAt: string) => {
+    const date = new Date(createdAt);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -75,7 +71,7 @@ export default function TransactionFeed() {
               >
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-[10px] uppercase tracking-widest text-primary cyber-pulse">
-                    {formatTimestamp(item.timestamp)}
+                    {formatTimestamp(item.createdAt)}
                   </span>
                 </div>
                 <p className="text-xs text-foreground/80 leading-relaxed">

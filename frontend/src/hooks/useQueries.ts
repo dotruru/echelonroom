@@ -11,11 +11,14 @@ import type {
 } from '@/types/domain';
 import { toast } from 'sonner';
 
-export function useGetCallerUserProfile() {
+export function useGetCallerUserProfile(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true;
+
   return useQuery<UserProfile>({
     queryKey: ['currentUserProfile'],
     queryFn: () => apiClient.get<UserProfile>('/profiles/me'),
-    retry: 1,
+    enabled,
+    retry: enabled ? 1 : false,
   });
 }
 
@@ -48,42 +51,43 @@ export function useGetAllListings() {
   });
 }
 
-export function useGetNFTBids(_nftId: number) {
+export function useGetNFTBids(nftId: number | null) {
   return useQuery<Bid[]>({
-    queryKey: ['nftBids', _nftId],
-    queryFn: async () => [],
-    staleTime: Infinity,
+    queryKey: ['nftBids', nftId],
+    queryFn: () => apiClient.get<Bid[]>(`/nfts/${nftId}/bids`),
+    enabled: nftId !== null,
   });
 }
 
-export function useGetNFTTransactions(_nftId: number) {
+export function useGetNFTTransactions(nftId: number | null) {
   return useQuery<Transaction[]>({
-    queryKey: ['nftTransactions', _nftId],
-    queryFn: async () => [],
-    staleTime: Infinity,
+    queryKey: ['nftTransactions', nftId],
+    queryFn: () => apiClient.get<Transaction[]>(`/nfts/${nftId}/transactions`),
+    enabled: nftId !== null,
   });
 }
 
 export function useGetTransactionFeed() {
   return useQuery<TransactionFeedItem[]>({
     queryKey: ['transactionFeed'],
-    queryFn: async () => [],
-    staleTime: 10_000,
+    queryFn: () => apiClient.get<TransactionFeedItem[]>('/feed'),
+    refetchInterval: 10_000,
   });
 }
 
 export function useGetToolbox() {
   return useQuery<ToolboxRow[]>({
     queryKey: ['toolbox'],
-    queryFn: async () => [],
-    staleTime: Infinity,
+    queryFn: () => apiClient.get<ToolboxRow[]>('/toolbox'),
   });
 }
 
 export function useSaveToolbox() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (_toolbox: ToolboxRow[]) => {
-      throw new Error('Toolbox persistence not yet implemented');
+    mutationFn: (toolbox: ToolboxRow[]) => apiClient.put<ToolboxRow[]>('/toolbox', toolbox),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['toolbox'] });
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -92,9 +96,20 @@ export function useSaveToolbox() {
 }
 
 export function useMintNFT() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (_payload: { name: string; description: string; image: unknown }) => {
-      throw new Error('Minting is not yet available on the backend service');
+    mutationFn: ({
+      name,
+      description,
+      imageData,
+    }: {
+      name: string;
+      description?: string;
+      imageData?: string | null;
+    }) => apiClient.post<NFT>('/nfts', { name, description, imageData }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['myNFTs'] });
+      toast.success('NFT minted successfully');
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -103,9 +118,14 @@ export function useMintNFT() {
 }
 
 export function useCreateListing() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (_payload: { nftId: number; price: number | string | bigint }) => {
-      throw new Error('Listing creation is not yet available on the backend service');
+    mutationFn: ({ nftId, priceLamports }: { nftId: number; priceLamports: bigint }) =>
+      apiClient.post('/listings', { nftId, priceLamports: priceLamports.toString() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allListings'] });
+      queryClient.invalidateQueries({ queryKey: ['myNFTs'] });
+      toast.success('Listing created');
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -117,12 +137,12 @@ export function usePurchaseNFT() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (_listingId: number) => {
-      throw new Error('Purchasing is not yet available on the backend service');
-    },
+    mutationFn: (listingId: number) =>
+      apiClient.post(`/listings/${listingId}/purchase`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['allListings'] });
       queryClient.invalidateQueries({ queryKey: ['myNFTs'] });
+      toast.success('Purchase complete');
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -131,9 +151,15 @@ export function usePurchaseNFT() {
 }
 
 export function usePlaceBid() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (_payload: { nftId: number; amount: number | string | bigint }) => {
-      throw new Error('Bidding is not yet available on the backend service');
+    mutationFn: ({ listingId, amountLamports }: { listingId: number; amountLamports: bigint }) =>
+      apiClient.post(`/listings/${listingId}/bids`, {
+        amountLamports: amountLamports.toString(),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allListings'] });
+      toast.success('Bid placed');
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -142,9 +168,14 @@ export function usePlaceBid() {
 }
 
 export function useAcceptBid() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (_nftId: number) => {
-      throw new Error('Accepting bids is not yet available on the backend service');
+    mutationFn: ({ listingId, bidId }: { listingId: number; bidId: number }) =>
+      apiClient.post(`/listings/${listingId}/bids/${bidId}/accept`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['allListings'] });
+      queryClient.invalidateQueries({ queryKey: ['myNFTs'] });
+      toast.success('Bid accepted');
     },
     onError: (error: Error) => {
       toast.error(error.message);

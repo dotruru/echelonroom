@@ -1,5 +1,5 @@
 import { useState, type ChangeEvent } from 'react';
-import { useGetMyNFTs, useCreateListing, usePlaceBid, useAcceptBid } from '../hooks/useQueries';
+import { useGetMyNFTs, useCreateListing, usePlaceBid } from '../hooks/useQueries';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,9 +7,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tag, Gavel, CheckCircle, Eye, Database, Search } from 'lucide-react';
+import { Tag, Eye, Database, Search } from 'lucide-react';
 import type { NFT } from '@/types/domain';
 import NFTDetailModal from './NFTDetailModal';
+import { toast } from 'sonner';
 
 interface MyNFTsTabProps {
   onSolveNFT: (nft: NFT) => void;
@@ -19,7 +20,6 @@ export default function MyNFTsTab({ onSolveNFT }: MyNFTsTabProps) {
   const { data: nfts, isLoading } = useGetMyNFTs();
   const { mutate: createListing, isPending: isListing } = useCreateListing();
   const { mutate: placeBid, isPending: isBidding } = usePlaceBid();
-  const { mutate: acceptBid, isPending: isAccepting } = useAcceptBid();
 
   const [listingPrice, setListingPrice] = useState('');
   const [bidAmount, setBidAmount] = useState('');
@@ -42,32 +42,57 @@ export default function MyNFTsTab({ onSolveNFT }: MyNFTsTabProps) {
     setDetailModalOpen(true);
   };
 
-  const handleCreateListing = () => {
-    if (selectedNFT && listingPrice) {
-      createListing(
-        { nftId: selectedNFT.id, price: BigInt(listingPrice) },
-        {
-          onSuccess: () => {
-            setDialogOpen(false);
-            setListingPrice('');
-          },
-        }
-      );
+  const solToLamports = (value: string) => {
+    const numeric = Number(value);
+    if (Number.isNaN(numeric) || numeric <= 0) {
+      return null;
     }
+    return BigInt(Math.round(numeric * 1_000_000_000));
+  };
+
+  const handleCreateListing = () => {
+    if (!selectedNFT) return;
+    const lamports = solToLamports(listingPrice);
+    if (!lamports) {
+      toast.error('Enter a valid price in SOL');
+      return;
+    }
+    createListing(
+      { nftId: selectedNFT.id, priceLamports: lamports },
+      {
+        onSuccess: () => {
+          setDialogOpen(false);
+          setListingPrice('');
+        },
+      }
+    );
   };
 
   const handlePlaceBid = () => {
-    if (selectedNFT && bidAmount) {
-      placeBid(
-        { nftId: selectedNFT.id, amount: BigInt(bidAmount) },
-        {
-          onSuccess: () => {
-            setDialogOpen(false);
-            setBidAmount('');
-          },
-        }
-      );
+    if (!selectedNFT) return;
+    const lamports = solToLamports(bidAmount);
+    if (!lamports) {
+      toast.error('Enter a valid amount in SOL');
+      return;
     }
+    const listingId = selectedNFT.listings[0]?.id;
+    if (!listingId) {
+      toast.error('Create a listing before accepting bids.');
+      return;
+    }
+
+    placeBid(
+      { listingId, amountLamports: lamports },
+      {
+        onSuccess: () => {
+          setDialogOpen(false);
+          setBidAmount('');
+        },
+        onError: () => {
+          toast.error('Failed to place bid. Try from the marketplace view.');
+        },
+      }
+    );
   };
 
   if (isLoading) {
@@ -111,7 +136,7 @@ export default function MyNFTsTab({ onSolveNFT }: MyNFTsTabProps) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {nfts.map((nft) => {
           const imageUrl = nft.imageUri || '/assets/generated/cyber-nft-placeholder.dim_400x400.png';
-          const owned = true;
+          const ownedListing = nft.listings?.[0];
 
           return (
             <Card key={nft.id.toString()} className="cyber-border overflow-hidden bg-black/50 transition-all hover:shadow-cyber">
@@ -127,11 +152,7 @@ export default function MyNFTsTab({ onSolveNFT }: MyNFTsTabProps) {
                 <CardTitle className="mb-2 line-clamp-1 text-base uppercase tracking-wide text-primary">{nft.name}</CardTitle>
                 <p className="mb-3 line-clamp-2 text-xs text-muted-foreground">{nft.description}</p>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {owned ? (
-                    <Badge variant="default" className="bg-primary/20 text-primary border-primary/30 uppercase text-xs">OWNED</Badge>
-                  ) : (
-                    <Badge variant="secondary" className="bg-muted/20 text-muted-foreground border-muted/30 uppercase text-xs">EXTERNAL</Badge>
-                  )}
+                  <Badge variant="default" className="bg-primary/20 text-primary border-primary/30 uppercase text-xs">OWNED</Badge>
                   {!nft.puzzleStatus?.solved && (
                     <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 uppercase text-xs">
                       UNSOLVED
@@ -156,36 +177,14 @@ export default function MyNFTsTab({ onSolveNFT }: MyNFTsTabProps) {
                   <Search className="h-4 w-4" />
                   SOLVE
                 </Button>
-                {owned ? (
-                  <>
-                    <Button
-                      onClick={() => handleOpenDialog(nft, 'list')}
-                      variant="default"
-                      className="w-full gap-2 bg-primary/20 text-primary border border-primary/50 hover:bg-primary/30 hover:shadow-cyber uppercase tracking-wider text-xs"
-                    >
-                      <Tag className="h-4 w-4" />
-                      LIST
-                    </Button>
-                    <Button
-                      onClick={() => acceptBid(nft.id)}
-                      disabled={isAccepting}
-                      variant="outline"
-                      className="w-full gap-2 border-primary/50 bg-transparent text-primary hover:bg-primary/10 hover:shadow-cyber uppercase tracking-wider text-xs"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      ACCEPT BID
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    onClick={() => handleOpenDialog(nft, 'bid')}
-                    variant="secondary"
-                    className="w-full gap-2 bg-muted/20 text-foreground border border-muted/30 hover:bg-muted/30 uppercase tracking-wider text-xs"
-                  >
-                    <Gavel className="h-4 w-4" />
-                    PLACE BID
-                  </Button>
-                )}
+                <Button
+                  onClick={() => handleOpenDialog(nft, 'list')}
+                  variant="default"
+                  className="w-full gap-2 bg-primary/20 text-primary border border-primary/50 hover:bg-primary/30 hover:shadow-cyber uppercase tracking-wider text-xs"
+                >
+                  <Tag className="h-4 w-4" />
+                  LIST
+                </Button>
               </CardFooter>
             </Card>
           );
@@ -248,6 +247,7 @@ export default function MyNFTsTab({ onSolveNFT }: MyNFTsTabProps) {
           nft={detailNFT}
           open={detailModalOpen}
           onOpenChange={setDetailModalOpen}
+          ownedListingId={detailNFT?.listings?.[0]?.id}
         />
       )}
     </div>

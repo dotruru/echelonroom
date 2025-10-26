@@ -1,4 +1,5 @@
-import { useGetNFTBids, useGetNFTTransactions } from '../hooks/useQueries';
+import { useState } from 'react';
+import { useGetNFTBids, useGetNFTTransactions, useAcceptBid } from '../hooks/useQueries';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,11 +11,14 @@ interface NFTDetailModalProps {
   nft: NFT;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  ownedListingId?: number;
 }
 
-export default function NFTDetailModal({ nft, open, onOpenChange }: NFTDetailModalProps) {
+export default function NFTDetailModal({ nft, open, onOpenChange, ownedListingId }: NFTDetailModalProps) {
   const { data: bids } = useGetNFTBids(nft.id);
   const { data: transactions } = useGetNFTTransactions(nft.id);
+  const { mutate: acceptBid, isPending: isAccepting } = useAcceptBid();
+  const [acceptingBidId, setAcceptingBidId] = useState<number | null>(null);
 
   const imageUrl = nft.imageUri || '/assets/generated/cyber-nft-placeholder.dim_400x400.png';
 
@@ -26,6 +30,24 @@ export default function NFTDetailModal({ nft, open, onOpenChange }: NFTDetailMod
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleAcceptBid = (bidId: number) => {
+    if (!ownedListingId) return;
+    setAcceptingBidId(bidId);
+    acceptBid(
+      { listingId: ownedListingId, bidId },
+      {
+        onSettled: () => setAcceptingBidId(null),
+      }
+    );
+  };
+
+  const lamportsToSol = (lamports?: string | null) => {
+    if (!lamports) return '0.00';
+    const value = Number(lamports);
+    if (Number.isNaN(value)) return '0.00';
+    return (value / 1_000_000_000).toFixed(2);
   };
 
   return (
@@ -80,16 +102,28 @@ export default function NFTDetailModal({ nft, open, onOpenChange }: NFTDetailMod
                   </div>
                   <div className="space-y-2">
                     {bids.map((bid) => (
-                      <div key={bid.id} className="flex items-center justify-between rounded-sm border border-primary/20 bg-black/30 p-2">
-                        <div className="flex items-center gap-2">
-                          <User className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs text-foreground/70">
-                            {bid.bidder.slice(0, 10)}...
-                          </span>
+                      <div key={bid.id} className="rounded-sm border border-primary/20 bg-black/30 p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <User className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs text-foreground/70">
+                              {bid.bidder.slice(0, 10)}...
+                            </span>
+                          </div>
+                          <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30 text-xs">
+                            {lamportsToSol(bid.amountLamports)} SOL
+                          </Badge>
                         </div>
-                        <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30 text-xs">
-                          {bid.amountLamports} LAMPORTS
-                        </Badge>
+                        {ownedListingId && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleAcceptBid(bid.id)}
+                            disabled={isAccepting && acceptingBidId === bid.id}
+                            className="mt-2 h-7 text-[10px] uppercase tracking-widest"
+                          >
+                            {isAccepting && acceptingBidId === bid.id ? 'Processing...' : 'Accept Bid'}
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -111,7 +145,7 @@ export default function NFTDetailModal({ nft, open, onOpenChange }: NFTDetailMod
                           </span>
                           <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30 text-xs">
                             <DollarSign className="h-3 w-3 mr-1" />
-                            {tx.priceLamports ?? '0'} LAMPORTS
+                            {lamportsToSol(tx.priceLamports)} SOL
                           </Badge>
                         </div>
                         <div className="space-y-1 text-xs text-foreground/70">

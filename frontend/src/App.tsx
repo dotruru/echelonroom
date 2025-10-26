@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useGetCallerUserProfile } from './hooks/useQueries';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from 'sonner';
 import Header from './components/Header';
@@ -7,12 +6,23 @@ import Footer from './components/Footer';
 import ProfileSetupModal from './components/ProfileSetupModal';
 import MarketplaceContent from './components/MarketplaceContent';
 import LandingPage from './components/LandingPage';
+import { useGetCallerUserProfile } from './hooks/useQueries';
+import { getAuthToken } from './lib/auth-storage';
 
 export default function App() {
-  const [hasEntered, setHasEntered] = useState(false);
-  const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
+  const [authToken, setAuthTokenState] = useState<string | null>(() => getAuthToken());
+  const [hasEntered, setHasEntered] = useState(() => !!authToken);
 
-  const showProfileSetup = hasEntered && !profileLoading && isFetched && userProfile === null;
+  const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile({
+    enabled: !!authToken && hasEntered,
+  });
+
+  const showProfileSetup = hasEntered && !!authToken && !profileLoading && isFetched && userProfile === null;
+
+  const handleAuthenticated = () => {
+    setAuthTokenState(getAuthToken());
+    setHasEntered(true);
+  };
 
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} forcedTheme="dark">
@@ -20,7 +30,7 @@ export default function App() {
         <Header />
         <main className="flex-1">
           {!hasEntered ? (
-            <LandingPage onEnter={() => setHasEntered(true)} />
+            <LandingPage onAuthenticated={handleAuthenticated} />
           ) : (
             <MarketplaceContent />
           )}

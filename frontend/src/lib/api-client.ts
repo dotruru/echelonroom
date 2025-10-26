@@ -1,9 +1,8 @@
-const DEFAULT_API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api';
-const DEFAULT_PRINCIPAL = 'public-access-agent';
+import { getAuthToken } from './auth-storage';
 
-interface RequestParams extends RequestInit {
-  principal?: string;
-}
+const DEFAULT_API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api';
+
+interface RequestParams extends RequestInit {}
 
 async function parseJson(response: Response) {
   const text = await response.text();
@@ -18,10 +17,11 @@ async function parseJson(response: Response) {
   }
 }
 
-async function request<T>(path: string, { principal, headers, ...init }: RequestParams = {}): Promise<T> {
+async function request<T>(path: string, { headers, ...init }: RequestParams = {}): Promise<T> {
   const url = `${DEFAULT_API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
+  const token = getAuthToken();
 
   try {
     const response = await fetch(url, {
@@ -29,7 +29,7 @@ async function request<T>(path: string, { principal, headers, ...init }: Request
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        'x-agent-principal': principal ?? DEFAULT_PRINCIPAL,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
       signal: controller.signal,
@@ -77,5 +77,4 @@ export const apiClient = {
 
 export const API_DEFAULTS = {
   baseUrl: DEFAULT_API_BASE_URL,
-  principal: DEFAULT_PRINCIPAL,
 };

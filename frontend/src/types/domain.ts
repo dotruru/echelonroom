@@ -27,12 +27,13 @@ export interface TransactionFeedItem {
   id: number;
   eventCode: string;
   message: string;
-  timestamp: string;
+  txSig?: string | null;
+  createdAt: string;
 }
 
 export interface ToolboxRow {
   id?: number;
-  toolboxLabel: string;
+  label: string;
   content: string;
   createdAt?: string;
   updatedAt?: string;

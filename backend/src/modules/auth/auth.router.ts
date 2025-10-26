@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { devLogin } from './auth.controller';
+import { requestWalletNonce, verifyWalletAccess } from './auth.controller';
 
 const router = Router();
 
-router.post('/dev-login', devLogin);
+router.post('/nonce', requestWalletNonce);
+router.post('/verify', verifyWalletAccess);
 
 export default router;

@@ -1,48 +1,28 @@
-import jwt from 'jsonwebtoken';
-import { z } from 'zod';
+import jwt, { JwtPayload } from 'jsonwebtoken';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { ENV } from '../../config/env';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+const JWT_SECRET = ENV.JWT_SECRET;
+const TOKEN_TTL_SECONDS = 60 * 60 * 24; // 24 hours
 
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET is not defined in environment variables');
+const authUserSelect = {
+  id: true,
+  principal: true,
+  codename: true,
+  avatarUrl: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+export type AuthUser = Prisma.UserGetPayload<{ select: typeof authUserSelect }>;
+
+function defaultCodename(principal: string) {
+  return `AGENT-${principal.slice(-4).toUpperCase()}`;
 }
 
-export const devLoginSchema = z.object({
-  principal: z
-    .string()
-    .trim()
-    .min(3)
-    .max(128)
-    .regex(/^[a-z0-9-_]+$/i, 'Principal may only contain alphanumeric, dash, underscore'),
-  codename: z.string().trim().min(2).max(64).optional(),
-});
-
-export async function performDevLogin(input: z.infer<typeof devLoginSchema>) {
-  const principal = input.principal.toLowerCase();
-
-  const user = await prisma.user.upsert({
-    where: { principal },
-    update: {
-      codename: input.codename ?? undefined,
-    },
-    create: {
-      principal,
-      codename: input.codename ?? `AGENT-${principal.slice(-4).toUpperCase()}`,
-    },
-    select: {
-      id: true,
-      principal: true,
-      codename: true,
-      avatarUrl: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
-
-  const token = jwt.sign(
+function signAuthToken(user: AuthUser) {
+  return jwt.sign(
     {
       sub: user.id,
       principal: user.principal,
@@ -53,9 +33,25 @@ export async function performDevLogin(input: z.infer<typeof devLoginSchema>) {
       expiresIn: TOKEN_TTL_SECONDS,
     }
   );
+}
 
+export async function ensureUserByPrincipal(principal: string, codename?: string | null) {
+  return prisma.user.upsert({
+    where: { principal },
+    update: {
+      codename: codename ?? undefined,
+    },
+    create: {
+      principal,
+      codename: codename ?? defaultCodename(principal),
+    },
+    select: authUserSelect,
+  });
+}
+
+export function buildAuthResponse(user: AuthUser) {
   return {
-    token,
+    token: signAuthToken(user),
     user,
     expiresIn: TOKEN_TTL_SECONDS,
   };
@@ -70,12 +66,16 @@ export interface AuthenticatedUser {
 
 export function verifyToken(token: string): AuthenticatedUser | null {
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as {
+    const payload = jwt.verify(token, JWT_SECRET) as JwtPayload & {
       sub: number;
       principal: string;
       codename?: string | null;
       avatarUrl?: string | null;
     };
+
+    if (!payload || typeof payload.sub !== 'number' || typeof payload.principal !== 'string') {
+      return null;
+    }
 
     return {
       id: payload.sub,
